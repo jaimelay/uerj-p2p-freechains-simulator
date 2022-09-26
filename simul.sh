@@ -26,8 +26,6 @@ TROLL_HOST=9003
 NEWBIE_HOST=9001
 
 updateHostsTimestamp() {
-    echo "TESTE"
-    echo $1
     NEW_DATE=`date -d "$DATE + $1 day" +%s`
     echo "...Updating Hosts Timestamps..."
     for (( host_idx = 1; host_idx <= $NUMBER_HOSTS; host_idx++ ))
@@ -50,17 +48,6 @@ synchronizeHosts() {
     echo "...Hosts Synchronized Sucessfully..."
 }
 
-showAllUserReps() {
-    echo "PIONEER REPS"
-    freechains --host=localhost:9001 chain $PUBLIC_FORUM_NAME reps $PIONEER_PUBKEY
-    echo "ACTIVE REPS"
-    freechains --host=localhost:9001 chain $PUBLIC_FORUM_NAME reps $ACTIVE_PUBKEY
-    echo "TROLL REPS"
-    freechains --host=localhost:9001 chain $PUBLIC_FORUM_NAME reps $TROLL_PUBKEY
-    echo "NEWBIE REPS"
-    freechains --host=localhost:9001 chain $PUBLIC_FORUM_NAME reps $NEWBIE_PUBKEY
-}
-
 getPioneerReps() {
     echo `freechains --host=localhost:9001 chain $PUBLIC_FORUM_NAME reps $PIONEER_PUBKEY`
 }
@@ -77,29 +64,44 @@ getNewbieReps() {
     echo `freechains --host=localhost:9001 chain $PUBLIC_FORUM_NAME reps $NEWBIE_PUBKEY`
 }
 
+getPostReps() {
+    echo `freechains --host=localhost:9001 chain $PUBLIC_FORUM_NAME reps $1`
+}
+
+showAllUserReps() {
+    echo "PIONEER REPS"
+    getPioneerReps
+    echo "ACTIVE REPS"
+    getActiveReps
+    echo "TROLL REPS"
+    getTrollReps
+    echo "NEWBIE REPS"
+    getNewbieReps
+}
+
 giveLikeOrDislikeToPost() {
     if [ $1 = 0 ]; then
-        if [ getPioneerReps > 15 ]; then
+        if [ $( getPioneerReps ) -gt 5 ]; then
             freechains chain $PUBLIC_FORUM_NAME --port=$2 like $3 --sign=$PIONEER_PVTKEY
         fi
 
-        if [ getActiveReps > 7 ]; then
+        if [ $( getActiveReps ) -gt 10 ]; then
             freechains chain $PUBLIC_FORUM_NAME --port=$2 like $3 --sign=$ACTIVE_PVTKEY
         fi
 
-        if [ getNewbieReps > 5 ]; then
+        if [ $( getNewbieReps ) -gt 15 ]; then
             freechains chain $PUBLIC_FORUM_NAME --port=$2 like $3 --sign=$NEWBIE_PVTKEY
         fi
     elif [ $1 = 2 ]; then
-        if [ getPioneerReps > 20 ]; then
+        if [ $( getPioneerReps ) -gt 10 ]; then
             freechains chain $PUBLIC_FORUM_NAME --port=$2 dislike $3 --sign=$PIONEER_PVTKEY
         fi
 
-        if [ getActiveReps > 14 ]; then
+        if [ $( getActiveReps ) -gt 14 ]; then
             freechains chain $PUBLIC_FORUM_NAME --port=$2 dislike $3 --sign=$ACTIVE_PVTKEY
         fi
 
-        if [ getNewbieReps > 10 ]; then
+        if [ $( getNewbieReps ) -gt 18 ]; then
             freechains chain $PUBLIC_FORUM_NAME --port=$2 dislike $3 --sign=$NEWBIE_PVTKEY
         fi
     fi
@@ -115,23 +117,7 @@ do
     echo "Host0$host_idx OK..."
 done
 
-# first posts of all users
-FIRST_PIONEER_POST=`freechains --host=localhost:${PIONEER_HOST} chain ${PUBLIC_FORUM_NAME} post inline 'Hello, I am Pioneer!' --sign=${PIONEER_PVTKEY}`
-FIRST_ACTIVE_POST=`freechains --host=localhost:${ACTIVE_HOST} chain ${PUBLIC_FORUM_NAME} post inline 'Hello, I am ACTIVE!' --sign=${ACTIVE_PVTKEY}`
-FIRST_NEWBIE_POST=`freechains --host=localhost:${NEWBIE_HOST} chain ${PUBLIC_FORUM_NAME} post inline 'Hello, I am NEWBIE!' --sign=${NEWBIE_PVTKEY}`
-FIRST_TROLL_POST=`freechains --host=localhost:${TROLL_HOST} chain ${PUBLIC_FORUM_NAME} post inline 'Hello, I am TROLL!' --sign=${TROLL_PVTKEY}`
-
-# synchronize all hosts
-# updateHostsTimestamp 0
-# synchronizeHosts
-
-# pioneer give one like to everybody to start
-# freechains chain $PUBLIC_FORUM_NAME --port=9001 like $FIRST_ACTIVE_POST --sign=$PIONEER_PVTKEY
-# freechains chain $PUBLIC_FORUM_NAME --port=9001 like $FIRST_NEWBIE_POST --sign=$PIONEER_PVTKEY
-# freechains chain $PUBLIC_FORUM_NAME --port=9001 like $FIRST_TROLL_POST --sign=$PIONEER_PVTKEY
-
-##########################
-
+# messages
 PIONEER_MESSAGES=(
     "freechains --host=localhost:${PIONEER_HOST} chain '${PUBLIC_FORUM_NAME}' post inline 'PIONEER VIRAL MESSAGE' --sign=${PIONEER_PVTKEY}"
     "freechains --host=localhost:${PIONEER_HOST} chain '${PUBLIC_FORUM_NAME}' post inline 'PIONEER NORMAL MESSAGE' --sign=${PIONEER_PVTKEY}"
@@ -156,7 +142,7 @@ NEWBIE_MESSAGES=(
     "freechains --host=localhost:${NEWBIE_HOST} chain '${PUBLIC_FORUM_NAME}' post inline 'NEWBIE BAD MESSAGE' --sign=${NEWBIE_PVTKEY}"
 )
 
-# init simulation for around 3 months (10 iterations per month)
+# init simulation for around 3 months (30 iterations per month)
 # everyday the host`s timestamps updated
 # every 7 days the hosts are synchronized
 # every 2 days pioneer post something
@@ -165,12 +151,11 @@ NEWBIE_MESSAGES=(
 # every 7 days newbie post something
 # like message if is viral, dislike message if is bad and do nothing if is normal message
 echo "...Initializing 3 months of simulation..."
-for (( i = 1; i <= 30; i++ ))
+for (( i = 1; i <= 90; i++ ))
 do
     echo "Day $i"
     updateHostsTimestamp $i
     synchronizeHosts
-    showAllUserReps
 
     MESSAGE_RANDOM_NUMBER=`shuf -i 0-1 -n 1` # 0 - Viral Message, 1 - Normal Message, 2 = Bad Message
 
@@ -185,8 +170,8 @@ do
     fi
 
     if [ $(($i % 5)) = 0 ]; then
-        HASH_MESSAGE=$(eval ${TROLL_MESSAGES[$MESSAGE_RANDOM_NUMBER]})
         MESSAGE_RANDOM_NUMBER=2 # TROLL HAS ALWAYS BAD MESSAGES
+        HASH_MESSAGE=$(eval ${TROLL_MESSAGES[$MESSAGE_RANDOM_NUMBER]})
         giveLikeOrDislikeToPost $MESSAGE_RANDOM_NUMBER $TROLL_HOST $HASH_MESSAGE
     fi
 
@@ -194,6 +179,8 @@ do
         HASH_MESSAGE=$(eval ${NEWBIE_MESSAGES[$MESSAGE_RANDOM_NUMBER]})
         giveLikeOrDislikeToPost $MESSAGE_RANDOM_NUMBER $NEWBIE_HOST $HASH_MESSAGE
     fi
+
+    showAllUserReps
 done
 
 echo "...3 months of simulation is finished..."
